@@ -137,7 +137,7 @@ def start_consumer(thread_queue, db_instance):
                 else:
                     logger.info("got message from MQ: " + str(msg))
             else:
-                db_instance.add_key_value_pair_to_db(MESSAGE_ID, msg)
+                db_instance.add_key_value_pair_to_db(str(MESSAGE_ID), msg)
                 logger.debug("Save to database complete.")
                 logger.debug("message ID:" + str(MESSAGE_ID))
                 value = db_instance.read_from_db(MESSAGE_ID)
