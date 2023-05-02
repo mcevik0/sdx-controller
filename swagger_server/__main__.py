@@ -140,7 +140,7 @@ def start_consumer(thread_queue, db_instance):
                 db_instance.add_key_value_pair_to_db(str(MESSAGE_ID), msg)
                 logger.debug("Save to database complete.")
                 logger.debug("message ID:" + str(MESSAGE_ID))
-                value = db_instance.read_from_db(MESSAGE_ID)
+                value = db_instance.read_from_db(str(MESSAGE_ID))
                 logger.debug("got value from DB:")
                 logger.debug(value)
                 MESSAGE_ID += 1
