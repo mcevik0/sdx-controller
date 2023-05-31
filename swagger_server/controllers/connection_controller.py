@@ -158,16 +158,20 @@ def place_connection(body):
     link_connection_dict = {}
 
     if db_instance.read_from_db("link_connection_dict") is not None:
-        link_connection_dict = json.loads(db_instance.read_from_db("link_connection_dict"))
+        link_connection_dict = json.loads(
+            db_instance.read_from_db("link_connection_dict")
+        )
 
     for domain, link in breakdown.items():
         link_str = json.dumps(link)
         if link_str not in link_connection_dict:
             link_connection_dict[link_str] = set()
-        elif breakdown not in link_connection_dict[link_str]:
-            link_connection_dict[link_str].add(json.dumps(body))
+        elif body not in link_connection_dict[link_str]:
+            link_connection_dict[link_str].add(body)
 
-        print(link_connection_dict)
+        db_instance.add_key_value_pair_to_db(
+            "link_connection_dict", json.dumps(link_connection_dict)
+        )
 
         logger.debug(f"Attempting to publish domain: {domain}, link: {link}")
 

@@ -5,7 +5,9 @@ import logging
 import threading
 
 import connexion
+from sdx.pce.load_balancing.te_solver import TESolver
 from sdx.pce.topology.manager import TopologyManager
+from sdx.pce.topology.temanager import TEManager
 
 from swagger_server import encoder
 from swagger_server.messaging.rpc_queue_consumer import *
@@ -30,6 +32,24 @@ def find_between(s, first, last):
         return s[start:end]
     except ValueError:
         return ""
+
+
+def generate_breakdown_and_send_to_lc(connection_data):
+    temanager = TEManager(topology_data=None, connection_data=connection_data)
+
+
+def handle_link_failure(msg_json, db_instance):
+    logger.debug("Removing connections that contain failed link")
+    if db_instance.read_from_db("link_connection_dict") is None:
+        return
+    link_connection_dict_str = db_instance.read_from_db("link_connection_dict")[
+        "link_connection_dict"
+    ]
+    link_connection_dict = json.loads(link_connection_dict_str)
+    for link in link_connection_dict:
+        connection_data = link_connection_dict[link]
+        if connection_data:
+            generate_breakdown_and_send_to_lc(connection_data)
 
 
 def process_lc_json_msg(
@@ -62,6 +82,8 @@ def process_lc_json_msg(
     if domain_name in domain_list:
         logger.info("updating topo")
         manager.update_topology(msg_json)
+        if "link_failure" in msg_json:
+            handle_link_failure(msg_json)
     # Add new topology
     else:
         domain_list.append(domain_name)
