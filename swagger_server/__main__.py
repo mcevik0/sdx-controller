@@ -11,6 +11,7 @@ from sdx.pce.topology.temanager import TEManager
 
 from swagger_server import encoder
 from swagger_server.messaging.rpc_queue_consumer import *
+from swagger_server.messaging.topic_queue_producer import TopicQueueProducer
 from swagger_server.utils.db_utils import *
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ def find_between(s, first, last):
         return ""
 
 
-def generate_breakdown_and_send_to_lc(connection_data, db_instance):
+def generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_instance):
     temanager = TEManager(topology_data=None, connection_data=connection_data)
     num_domain_topos = 0
 
@@ -68,23 +69,51 @@ def generate_breakdown_and_send_to_lc(connection_data, db_instance):
 
     graph = temanager.generate_graph_te()
     if graph is None:
-        return None
+        return
 
     traffic_matrix = temanager.generate_connection_te()
     if traffic_matrix is None:
-        return None
+        return
 
     solver = TESolver(graph, traffic_matrix)
     solution = solver.solve()
     if solution is None or solution.connection_map is None:
-        return None
+        return
 
     breakdown = temanager.generate_connection_breakdown(solution)
     logger.debug(f"-- BREAKDOWN: {json.dumps(breakdown)}")
 
     if breakdown is None:
-        return None
+        return
     
+    for domain, link in breakdown.items():
+        link_str = json.dumps(link)
+        if link_str not in link_connection_dict:
+            link_connection_dict[link_str] = set()
+        elif body in link_connection_dict[link_str]:
+            link_connection_dict[link_str].remove(body)
+
+        db_instance.add_key_value_pair_to_db(
+            "link_connection_dict", json.dumps(link_connection_dict)
+        )
+
+        logger.debug(f"Attempting to publish domain: {domain}, link: {link}")
+
+        # From "urn:ogf:network:sdx:topology:amlight.net", attempt to
+        # extract a string like "amlight".
+        domain_name = find_between(domain, "topology:", ".net") or f"{domain}"
+        exchange_name = "connection"
+
+        logger.debug(
+            f"Publishing '{link}' with exchange_name: {exchange_name}, "
+            f"routing_key: {domain_name}"
+        )
+
+        producer = TopicQueueProducer(
+            timeout=5, exchange_name=exchange_name, routing_key=domain_name
+        )
+        producer.call(json.dumps(link))
+        producer.stop_keep_alive()
 
 
 def handle_link_failure(msg_json, db_instance):
@@ -98,7 +127,7 @@ def handle_link_failure(msg_json, db_instance):
     for link in link_connection_dict:
         connection_data = link_connection_dict[link]
         if connection_data:
-            generate_breakdown_and_send_to_lc(connection_data)
+            generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_instance)
 
 
 def process_lc_json_msg(
