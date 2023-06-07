@@ -34,8 +34,57 @@ def find_between(s, first, last):
         return ""
 
 
-def generate_breakdown_and_send_to_lc(connection_data):
+def generate_breakdown_and_send_to_lc(connection_data, db_instance):
     temanager = TEManager(topology_data=None, connection_data=connection_data)
+    num_domain_topos = 0
+
+    if db_instance.read_from_db("num_domain_topos") is not None:
+        num_domain_topos = db_instance.read_from_db("num_domain_topos")[
+            "num_domain_topos"
+        ]
+    lc_domain_topo_dict = {}
+
+    # Read LC-1, LC-2, LC-3, and LC-4 topologies because of
+    # https://github.com/atlanticwave-sdx/sdx-controller/issues/152
+    for i in range(1, int(num_domain_topos) + 1):
+        lc = f"LC-{i}"
+        logger.debug(f"Reading {lc} from DB")
+        curr_topo = db_instance.read_from_db(lc)
+        if curr_topo is None:
+            logger.debug(f"Read {lc} from DB: {curr_topo}")
+            continue
+        else:
+            # Get the actual thing minus the Mongo ObjectID.
+            curr_topo_str = curr_topo.get(lc)
+            # Just print a substring, not the whole thing.
+            logger.debug(f"Read {lc} from DB: {curr_topo_str[0:50]}...")
+
+        curr_topo_json = json.loads(curr_topo_str)
+        lc_domain_topo_dict[curr_topo_json["domain_name"]] = curr_topo_json[
+            "lc_queue_name"
+        ]
+        logger.debug(f"Adding #{i} topology {curr_topo_json.get('id')} to TEManager")
+        temanager.add_topology(curr_topo_json)
+
+    graph = temanager.generate_graph_te()
+    if graph is None:
+        return None
+
+    traffic_matrix = temanager.generate_connection_te()
+    if traffic_matrix is None:
+        return None
+
+    solver = TESolver(graph, traffic_matrix)
+    solution = solver.solve()
+    if solution is None or solution.connection_map is None:
+        return None
+
+    breakdown = temanager.generate_connection_breakdown(solution)
+    logger.debug(f"-- BREAKDOWN: {json.dumps(breakdown)}")
+
+    if breakdown is None:
+        return None
+    
 
 
 def handle_link_failure(msg_json, db_instance):

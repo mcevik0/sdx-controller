@@ -155,7 +155,11 @@ def place_connection(body):
     if breakdown is None:
         return "Could not break down the solution", 400
 
-    link_connection_dict = {}
+    link_connection_dict = (
+        db_instance.read_from_db("link_connection_dict")
+        if db_instance.read_from_db("link_connection_dict")
+        else None
+    )
 
     if db_instance.read_from_db("link_connection_dict") is not None:
         link_connection_dict = json.loads(
