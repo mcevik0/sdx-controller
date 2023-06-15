@@ -35,7 +35,7 @@ def find_between(s, first, last):
         return ""
 
 
-def generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_instance):
+def generate_breakdown_and_send_to_lc(connection_data, db_instance):
     temanager = TEManager(topology_data=None, connection_data=connection_data)
     num_domain_topos = 0
 
@@ -87,16 +87,6 @@ def generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_
         return
     
     for domain, link in breakdown.items():
-        link_str = json.dumps(link)
-        if link_str not in link_connection_dict:
-            link_connection_dict[link_str] = set()
-        elif body in link_connection_dict[link_str]:
-            link_connection_dict[link_str].remove(body)
-
-        db_instance.add_key_value_pair_to_db(
-            "link_connection_dict", json.dumps(link_connection_dict)
-        )
-
         logger.debug(f"Attempting to publish domain: {domain}, link: {link}")
 
         # From "urn:ogf:network:sdx:topology:amlight.net", attempt to
@@ -116,18 +106,24 @@ def generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_
         producer.stop_keep_alive()
 
 
+def remove_connection_and_send_to_lc(connection_data, db_instance):
+    pass
+
+
 def handle_link_failure(msg_json, db_instance):
     logger.debug("Removing connections that contain failed link")
-    if db_instance.read_from_db("link_connection_dict") is None:
+    if db_instance.read_from_db("link_connections_dict") is None:
         return
-    link_connection_dict_str = db_instance.read_from_db("link_connection_dict")[
-        "link_connection_dict"
+    link_connections_dict_str = db_instance.read_from_db("link_connections_dict")[
+        "link_connections_dict"
     ]
-    link_connection_dict = json.loads(link_connection_dict_str)
-    for link in link_connection_dict:
-        connection_data = link_connection_dict[link]
-        if connection_data:
-            generate_breakdown_and_send_to_lc(connection_data, link_connection_dict, db_instance)
+    link_connections_dict = json.loads(link_connections_dict_str)
+    for link in link_connections_dict:
+        connections = link_connections_dict[link]
+        if connections:
+            for connection_data in connections:
+                # Need to remove existing connection
+                generate_breakdown_and_send_to_lc(connection_data, link_connections_dict, db_instance)
 
 
 def process_lc_json_msg(
@@ -158,9 +154,10 @@ def process_lc_json_msg(
 
     # Update existing topology
     if domain_name in domain_list:
-        logger.info("updating topo")
+        logger.info("Updating topo.")
         manager.update_topology(msg_json)
         if "link_failure" in msg_json:
+            logger.info("Processing link failure.")
             handle_link_failure(msg_json)
     # Add new topology
     else:

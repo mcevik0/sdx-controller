@@ -155,26 +155,26 @@ def place_connection(body):
     if breakdown is None:
         return "Could not break down the solution", 400
 
-    link_connection_dict = (
-        db_instance.read_from_db("link_connection_dict")
-        if db_instance.read_from_db("link_connection_dict")
+    link_connections_dict = (
+        db_instance.read_from_db("link_connections_dict")
+        if db_instance.read_from_db("link_connections_dict")
         else None
     )
 
-    if db_instance.read_from_db("link_connection_dict") is not None:
-        link_connection_dict = json.loads(
-            db_instance.read_from_db("link_connection_dict")
+    if db_instance.read_from_db("link_connections_dict") is not None:
+        link_connections_dict = json.loads(
+            db_instance.read_from_db("link_connections_dict")
         )
 
     for domain, link in breakdown.items():
         link_str = json.dumps(link)
-        if link_str not in link_connection_dict:
-            link_connection_dict[link_str] = set()
-        elif body not in link_connection_dict[link_str]:
-            link_connection_dict[link_str].add(body)
+        if link_str not in link_connections_dict:
+            link_connections_dict[link_str] = set()
+        elif body not in link_connections_dict[link_str]:
+            link_connections_dict[link_str].add(body)
 
         db_instance.add_key_value_pair_to_db(
-            "link_connection_dict", json.dumps(link_connection_dict)
+            "link_connections_dict", json.dumps(link_connections_dict)
         )
 
         logger.debug(f"Attempting to publish domain: {domain}, link: {link}")
