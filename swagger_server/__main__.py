@@ -85,7 +85,7 @@ def generate_breakdown_and_send_to_lc(connection_data, db_instance):
 
     if breakdown is None:
         return
-    
+
     for domain, link in breakdown.items():
         logger.debug(f"Attempting to publish domain: {domain}, link: {link}")
 
@@ -123,7 +123,9 @@ def handle_link_failure(msg_json, db_instance):
         if connections:
             for connection_data in connections:
                 # Need to remove existing connection
-                generate_breakdown_and_send_to_lc(connection_data, link_connections_dict, db_instance)
+                generate_breakdown_and_send_to_lc(
+                    connection_data, link_connections_dict, db_instance
+                )
 
 
 def process_lc_json_msg(
