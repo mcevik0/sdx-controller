@@ -106,22 +106,34 @@ def generate_breakdown_and_send_to_lc(connection_data, db_instance):
         producer.stop_keep_alive()
 
 
-def remove_connection_and_send_to_lc(connection_data, db_instance):
-    pass
+def remove_connection_and_send_to_lc(failed_link, connection_data, db_instance):
+    link_connection_dict_json = db_instance.read_from_db("link_connections_dict")
+    if not link_connection_dict_json:
+        return
+    link_connection_dict = json.loads(link_connection_dict_json)
+    failed_connections = link_connection_dict.get(failed_link)
+    if not failed_connections:
+        return
+    for failed_connection in failed_connections:
+        failed_connection["connection_failure"] = True
+        generate_breakdown_and_send_to_lc(connection_data, db_instance)
 
 
 def handle_link_failure(msg_json, db_instance):
     logger.debug("Removing connections that contain failed link")
     if db_instance.read_from_db("link_connections_dict") is None:
         return
-    link_connections_dict_str = db_instance.read_from_db("link_connections_dict")[
-        "link_connections_dict"
-    ]
-    link_connections_dict = json.loads(link_connections_dict_str)
+    link_connections_dict_str = db_instance.read_from_db("link_connections_dict")
+
+    if link_connections_dict_str:
+        link_connections_dict = json.loads(
+            link_connections_dict_str["link_connections_dict"]
+        )
     for link in link_connections_dict:
         connections = link_connections_dict[link]
         if connections:
             for connection_data in connections:
+                connection_data["connection_failure"] = True
                 # Need to remove existing connection
                 generate_breakdown_and_send_to_lc(
                     connection_data, link_connections_dict, db_instance
