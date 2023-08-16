@@ -2,7 +2,9 @@
 
 import json
 import logging
+import os
 import threading
+from queue import Queue
 
 import connexion
 from sdx.pce.load_balancing.te_solver import TESolver
@@ -10,12 +12,12 @@ from sdx.pce.topology.manager import TopologyManager
 from sdx.pce.topology.temanager import TEManager
 
 from swagger_server import encoder
-from swagger_server.messaging.rpc_queue_consumer import *
-from swagger_server.messaging.topic_queue_producer import TopicQueueProducer
-from swagger_server.utils.db_utils import *
+from swagger_server.messaging.rpc_queue_consumer import RpcConsumer
+from swagger_server.utils.db_utils import DbUtils
 
 logger = logging.getLogger(__name__)
 logging.getLogger("pika").setLevel(logging.WARNING)
+LOG_FILE = os.environ.get("LOG_FILE")
 
 
 def is_json(myjson):
@@ -232,9 +234,7 @@ def start_consumer(thread_queue, db_instance):
             manager.add_topology(topo_json)
 
     while True:
-        if thread_queue.empty():
-            continue
-
+        # Queue.get() will block until there's an item in the queue.
         msg = thread_queue.get()
         logger.debug("MQ received message:" + str(msg))
 
@@ -266,7 +266,10 @@ def start_consumer(thread_queue, db_instance):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    if LOG_FILE:
+        logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
+    else:
+        logging.basicConfig(level=logging.INFO)
 
     # Run swagger service
     app = connexion.App(__name__, specification_dir="./swagger/")
@@ -277,8 +280,6 @@ def main():
 
     # Run swagger in a thread
     threading.Thread(target=lambda: app.run(port=8080)).start()
-
-    DB_NAME = os.environ.get("DB_NAME") + ".sqlite3"
 
     # Get DB connection and tables set up.
     db_instance = DbUtils()
